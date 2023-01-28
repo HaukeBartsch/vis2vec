@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "fs-extra": "^11.1.0",
+    "path-intersection": "^2.2.1",
     "word2vec": "^1.1.5",
     "yargs": "^17.6.2"
   }
