@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// profiling with option--prof
+// run afterwards the log through node again
 
 const fs = require("fs-extra");
 var intersect = require('path-intersection');
@@ -7,7 +9,7 @@ function getStartPosition(path) {
     var re_start_coords = /M ([+\-0-9]*) ([+\-0-9]*)/;
     var matches = path.match(re_start_coords);
     if (matches == null) {
-        console.log("What is happening?");
+        console.log("What is happening? should be an M but is:  " + path);
     }
     var xcoord = parseInt(matches[1]);
     var ycoord = parseInt(matches[2]);
@@ -84,8 +86,6 @@ async function createDictionary(filePaths) {
 
     var out = fs.createWriteStream("dictionary.txt"); // each line is a path
     // our dictionary should have size/complexity sorted entries
-
-
     let sizeDistribution = {};
     for (var f = 0; f < filePaths.length; f++) {
         var filePath = filePaths[f];
@@ -222,6 +222,17 @@ function checkIntersection(paths, path1) {
     for (i in paths) {
         var path0 = paths[i];
         var intersection = intersect(path0, path1);
+        // Some intersections  might  be ok,  for example of the two strokes are long
+        // We would really like to test  here for the angle of intersection but for now
+        // we can simply use the number of intersecting points.
+        if (intersection.length == 4 && path0.length > 300 && path1.length > 300) {
+            // maybe check if the 4 points are close enough together?
+            var cc = [[intersection[0].x, intersection[1].x, intersection[2].x, intersection[3].x], [intersection[0].y, intersection[1].y, intersection[2].y, intersection[3].y]];
+            var size = [Math.max(...cc[0]) - Math.min(...cc[0]), Math.max(...cc[1]) - Math.min(...cc[1])];
+            if (size[0] + size[1] < 90)
+                return false;
+            return true;
+        }
         if (intersection.length > 0) {
             return true;
         }
@@ -233,11 +244,18 @@ function checkIntersection(paths, path1) {
 
 
 var dictCache = null;
+var sizeDistributionCache = null;
 function predict(dictionaryPaths) {
 
     // get the size distribution from sizeDistribution.json
-    const contentRaw = fs.readFileSync("sizeDistribution.json");
-    var sizeDistribution = JSON.parse(contentRaw);
+    var sizeDistribution = null;
+    if (sizeDistributionCache == null) {
+        const contentRaw = fs.readFileSync("sizeDistribution.json");
+        sizeDistribution = JSON.parse(contentRaw);
+        sizeDistributionCache = sizeDistribution;
+    } else {
+        sizeDistribution = sizeDistributionCache;
+    }
     var dict = null;
     if (dictCache == null) {
         var dict = [];
@@ -259,8 +277,11 @@ function predict(dictionaryPaths) {
     let character = [box_path]; // every character is a list of drawing commands (existing dictionary entries placed inside the box)
 
     let attempt = 0;
+    // how many characters for this?
+    var numStrokes = 2 + Math.max(1, Math.floor(gaussianRandom(7, 2)));
+
     while (attempt < 2000) {
-        if (character.length > 11)
+        if (character.length > numStrokes)
             break;
         var randomStroke = null;
         /*if (character.length < 3 && attempt < 200) {
@@ -268,7 +289,7 @@ function predict(dictionaryPaths) {
         } else { */
         randomStroke = pickStroke(dict, sizeDistribution);
         //}
-        for (var i = 0; i < 2000; i++) {
+        for (var i = 0; i < 1000; i++) {
             // the strokes first position is not the center
             var path = setStartPosition(randomStroke, pickPos(0, 1024));
             if (!checkIntersection(character, path)) {
@@ -293,14 +314,14 @@ function pageForCharacter(characters) {
         "  <meta charset=\"UTF-8\" />\n" +
         "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n" +
         "  <meta http-equiv=\"X-UA-Compatible\" content=\"ie=edge\" />\n" +
-        "  <title>Using SVG as an image tag</title>\n" +
+        "  <title>Random strokes</title>\n" +
         "  <link href=\"index.css\" rel=\"stylesheet\" />\n" +
         "</head>\n" +
         "<body>\n" +
-        "<div><div style=\"width: 100%; height: 100%; display: inline-block; margin: 60px;\">";
+        "<div><div style=\"width: 100%; height: 100%; display: inline-table; margin: 60px;\">";
     for (var c = 0; c < characters.length; c++) {
         var char = characters[c];
-        page += "<svg viewBox=\"0 0 1024 1024\" height=\"400\" width=\"400\" style=\"margin-right: 200px; margin-bottom: 20px;\"><path class=\"svg1\" style = \"fill: black; stroke: black; stroke-width: 2; stroke-linecap: round; stroke-linejoin:  miter; stroke-miterlimit: 4;\"  d = \"";
+        page += "<svg viewBox=\"0 0 1024 1024\" height=\"100\" width=\"100\" style=\"margin-right: 100px; margin-bottom: 20px;\"><path class=\"svg1\" style = \"fill: black; stroke: width; stroke-width: 2; stroke-linecap: round; stroke-linejoin:  miter; stroke-miterlimit: 4;\"  d = \"";
         for (var i = 0; i < char.length; i++) {
             page += char[i] + " ";
         }
@@ -338,7 +359,7 @@ yargs(hideBin(process.argv))
             console.info(`process: ${argv.filename} to get a cleared text file`)
 
         var chars = [];
-        for (var i = 0; i < 5 * 5; i++)
+        for (var i = 0; i < 7 * 7; i++)
             chars.push(predict(argv.filename));  // that is now an array
         pageForCharacter(chars);
     })
