@@ -242,6 +242,64 @@ function checkIntersection(paths, path1) {
 
 // if we predict a large character first and fill in the rest?
 
+function vary(parent, dictionaryPaths) {
+    // get the size distribution from sizeDistribution.json
+    var sizeDistribution = null;
+    if (sizeDistributionCache == null) {
+        const contentRaw = fs.readFileSync("sizeDistribution.json");
+        sizeDistribution = JSON.parse(contentRaw);
+        sizeDistributionCache = sizeDistribution;
+    } else {
+        sizeDistribution = sizeDistributionCache;
+    }
+    var dict = null;
+    if (dictCache == null) {
+        var dict = [];
+        for (var f = 0; f < dictionaryPaths.length; f++) {
+            var filePath = dictionaryPaths[f];
+            console.log("read: " + filePath);
+            const contentRaw = fs.readFileSync(filePath);
+            var content = contentRaw.toString('utf8').split("\n");
+            for (c in content)
+                dict.push(content[c]);
+        }
+        dictCache = dict;
+    } else {
+        dict = dictCache;
+    }
+
+    // remove some at the end
+    let character = parent.slice(0, Math.floor(parent.length / 2));
+    let box_path = "M 0 0 L 1024 0 L 1024 1024 L 0 1024 L 0 0"; // should be square box as big as our drawing area (0..1024, 0..1024)
+    character.unshift(box_path);
+
+    let attempt = 0;
+    // how many characters for this?
+    var numStrokes = parent.length - 1;
+    while (attempt < 2000) {
+        if (character.length > numStrokes)
+            break;
+        var randomStroke = null;
+        /*if (character.length < 3 && attempt < 200) {
+            randomStroke = pickStrokeLarge(dict, 0.001);
+        } else { */
+        randomStroke = pickStroke(dict, sizeDistribution);
+        //}
+        for (var i = 0; i < 1000; i++) {
+            // the strokes first position is not the center
+            var path = setStartPosition(randomStroke, pickPos(0, 1024));
+            if (!checkIntersection(character, path)) {
+                character.push(path);
+                break; // try with the next random stroke
+            }
+            attempt++;
+        }
+    }
+    character.shift();  // remove the box again
+    //console.log(character);
+    //console.log("strokes: " + character.length);
+    return character;
+}
 
 var dictCache = null;
 var sizeDistributionCache = null;
@@ -352,7 +410,7 @@ yargs(hideBin(process.argv))
         return yargs
             .positional('filename', {
                 describe: 'json with array of dictionaries',
-                default: 'database.json'
+                default: 'dictionary.txt'
             })
     }, (argv) => {
         if (argv.verbose)
@@ -361,6 +419,21 @@ yargs(hideBin(process.argv))
         var chars = [];
         for (var i = 0; i < 7 * 7; i++)
             chars.push(predict(argv.filename));  // that is now an array
+        pageForCharacter(chars);
+    })
+    .command('variation [filename..]', 'create a character based on the dictionary.txt and vary it on the page', (yargs) => {
+        return yargs
+            .positional('filename', {
+                describe: 'json with array of dictionaries',
+                default: 'dictionary.txt'
+            })
+    }, (argv) => {
+        if (argv.verbose)
+            console.info(`process: ${argv.filename} to get a cleared text file`)
+
+        var chars = [predict(argv.filename)];
+        for (var i = 0; i < (7 * 7) - 1; i++)
+            chars.push(vary(chars[0], argv.filename));  // that is now an array
         pageForCharacter(chars);
     })
     .option('verbose', {
