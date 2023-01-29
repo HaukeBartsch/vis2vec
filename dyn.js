@@ -268,8 +268,12 @@ function vary(parent, dictionaryPaths) {
         dict = dictCache;
     }
 
+    // we should only remove the smallest instead of all at the end
+    let character = parent;
+    character.sort(function (a, b) { return b.length - a.length; });
+
     // remove some at the end
-    let character = parent.slice(0, Math.floor(parent.length / 2));
+    character = character.slice(0, Math.floor(parent.length / 2));
     let box_path = "M 0 0 L 1024 0 L 1024 1024 L 0 1024 L 0 0"; // should be square box as big as our drawing area (0..1024, 0..1024)
     character.unshift(box_path);
 
