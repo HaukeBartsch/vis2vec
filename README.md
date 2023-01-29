@@ -17,3 +17,7 @@ open http://localhost:3000/page.html
 ```
 
 <img src="images/variations.jpg" alt="variations on the top left bone pile" width="auto" style="padding: 20px"/>
+
+<img src="images/variations02.jpg" alt="variations on the top left bone pile" width="auto" style="padding: 20px"/>
+
+<img src="images/variations03.jpg" alt="variations on the top left bone pile" width="auto" style="padding: 20px"/>
