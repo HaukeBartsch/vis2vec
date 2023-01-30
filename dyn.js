@@ -5,6 +5,17 @@
 const fs = require("fs-extra");
 var intersect = require('path-intersection');
 
+
+let circle_center = [512, 512];
+let circle_radius = 512;
+/* let box_path = "M " + circle_center[0] + " " + circle_center[1] + " " +
+    "m -" + circle_radius + ", 0" +
+    " a " + circle_radius + "," + circle_radius + " 0 1,0 " + (circle_radius * 2) + ",0" +
+    " a " + circle_radius + "," + circle_radius + " 0 1,0 -" + (circle_radius * 2) + ",0"; */
+
+let box_path = "M 0 0 L 1024 0 L 1024 1024 L 0 1024 L 0 0"; // should be square box as big as our drawing area (0..1024, 0..1024)
+
+
 function getStartPosition(path) {
     var re_start_coords = /M ([+\-0-9]*) ([+\-0-9]*)/;
     var matches = path.match(re_start_coords);
@@ -274,7 +285,6 @@ function vary(parent, dictionaryPaths) {
 
     // remove some at the end
     character = character.slice(0, Math.floor(parent.length / 2));
-    let box_path = "M 0 0 L 1024 0 L 1024 1024 L 0 1024 L 0 0"; // should be square box as big as our drawing area (0..1024, 0..1024)
     character.unshift(box_path);
 
     let attempt = 0;
@@ -335,7 +345,6 @@ function predict(dictionaryPaths) {
     }
     //console.log("got " + dict.length + " entries in dictionary.");
     // so we can draw now some number of characters and place them inside a box
-    let box_path = "M 0 0 L 1024 0 L 1024 1024 L 0 1024 L 0 0"; // should be square box as big as our drawing area (0..1024, 0..1024)
     let character = [box_path]; // every character is a list of drawing commands (existing dictionary entries placed inside the box)
 
     let attempt = 0;
@@ -370,6 +379,33 @@ function predict(dictionaryPaths) {
 function pageForCharacter(characters) {
     var out = fs.createWriteStream("page.html"); // each line is a path
 
+    var filter = "<defs>" +
+        "<filter id=\"red-glow\" filterUnits=\"userSpaceOnUse\"" +
+        "   x =\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\">" +
+        "<feGaussianBlur in=\"SourceGraphic\" stdDeviation=\"5\" result=\"blur5\"/>" +
+        "<feGaussianBlur in=\"SourceGraphic\" stdDeviation=\"10\" result=\"blur10\"/>" +
+        "<feGaussianBlur in=\"SourceGraphic\" stdDeviation=\"20\" result=\"blur20\"/>" +
+        "<feGaussianBlur in=\"SourceGraphic\" stdDeviation=\"30\" result=\"blur30\"/>" +
+        "<feGaussianBlur in=\"SourceGraphic\" stdDeviation=\"50\" result=\"blur50\"/>" +
+        "<feMerge result=\"blur-merged\">" +
+        "  <feMergeNode in=\"blur10\"/>" +
+        "  <feMergeNode in=\"blur20\"/>" +
+        "  <feMergeNode in=\"blur30\"/>" +
+        "  <feMergeNode in=\"blur50\"/>" +
+        "</feMerge>" +
+        "<feColorMatrix result=\"red-blur\" in=\"blur-merged\" type=\"matrix\"" +
+        "               values=\"1 0 0 0 0" +
+        "                       0 0.06 0 0 0" +
+        "                       0 0 0.44 0 0" +
+        "                       0 0 0 1 0\" />" +
+        "<feMerge>" +
+        "  <feMergeNode in=\"red-blur\"/>" +
+        "  <feMergeNode in=\"blur5\"/>" +
+        "  <feMergeNode in=\"SourceGraphic\"/>" +
+        "</feMerge>" +
+        "</filter>" +
+        "</defs>";
+
     let page = "<!DOCTYPE html>\n" +
         "<html lang=\"en\">\n" +
         "<head>\n" +
@@ -379,11 +415,13 @@ function pageForCharacter(characters) {
         "  <title>Random strokes</title>\n" +
         "  <link href=\"index.css\" rel=\"stylesheet\" />\n" +
         "</head>\n" +
-        "<body>\n" +
-        "<div><div style=\"width: 100%; height: 100%; display: inline-table; margin: 60px;\">";
+        "<body style=\"background: black;\">\n" +
+        "<svg viewBox=\"0 0 1024 1024\" height=\"100\" width=\"100\">" + filter + "</svg>\n" +
+        "<div>\n<div style=\"width: 100%; height: 100%; display: inline-table; margin: 60px; fill: white;\">";
     for (var c = 0; c < characters.length; c++) {
         var char = characters[c];
-        page += "<svg viewBox=\"0 0 1024 1024\" height=\"100\" width=\"100\" style=\"margin-right: 100px; margin-bottom: 20px;\"><path class=\"svg1\" style = \"fill: black; stroke: width; stroke-width: 2; stroke-linecap: round; stroke-linejoin:  miter; stroke-miterlimit: 4;\"  d = \"";
+        page += "<svg viewBox=\"0 0 1024 1024\" height=\"100\" width=\"100\" style=\"margin-right: 100px; margin-bottom: 20px; filter: url(#red-glow);\">";
+        page += "<path class=\"svg1\" style = \"stroke: width; stroke-width: 2; stroke-linecap: round; stroke-linejoin:  miter; stroke-miterlimit: 4;\"  d = \"";
         for (var i = 0; i < char.length; i++) {
             page += char[i] + " ";
         }
@@ -421,7 +459,7 @@ yargs(hideBin(process.argv))
             console.info(`process: ${argv.filename} to get a cleared text file`)
 
         var chars = [];
-        for (var i = 0; i < 7 * 7; i++)
+        for (var i = 0; i < 16 * 16; i++)
             chars.push(predict(argv.filename));  // that is now an array
         pageForCharacter(chars);
     })
@@ -436,7 +474,7 @@ yargs(hideBin(process.argv))
             console.info(`process: ${argv.filename} to get a cleared text file`)
 
         var chars = [predict(argv.filename)];
-        for (var i = 0; i < (7 * 7) - 1; i++)
+        for (var i = 0; i < (16 * 16) - 1; i++)
             chars.push(vary(chars[0], argv.filename));  // that is now an array
         pageForCharacter(chars);
     })
@@ -448,4 +486,3 @@ yargs(hideBin(process.argv))
         console.log('Use --help to see option')
     })
     .parse()
-
