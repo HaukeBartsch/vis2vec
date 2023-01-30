@@ -1,4 +1,7 @@
 
+<img src="images/collage.jpg" alt="variations on the top left bone pile" width="auto" style="padding: 20px"/>
+
+
 ```{bash}
 ./dyn.js database data/all.json data/graphicsJa.txt
 ./dyn.js predict dictionary.txt
