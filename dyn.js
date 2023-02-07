@@ -17,10 +17,13 @@ let box_path = "M 0 0 L 1024 0 L 1024 1024 L 0 1024 L 0 0"; // should be square 
 
 
 function getStartPosition(path) {
+    if (typeof path == 'undefined')
+        return [0, 0];
     var re_start_coords = /M ([+\-0-9]*) ([+\-0-9]*)/;
     var matches = path.match(re_start_coords);
     if (matches == null) {
-        console.log("What is happening? should be an M but is:  " + path);
+        console.log("What is happening? should be an M but is:  \"" + path + "\". Skip");
+        return [0, 0];
     }
     var xcoord = parseInt(matches[1]);
     var ycoord = parseInt(matches[2]);
@@ -30,6 +33,8 @@ function getStartPosition(path) {
 // the start position is one (random) M value pair at the beginning
 // we want to place the center of the object to newPos
 function setStartPosition(path, newPos) { // newPos = [0,0]
+    if (typeof path == 'undefined')
+        return null;
     var c = getStartPosition(path);
     let xcoord = c[0];
     let ycoord = c[1];
@@ -216,27 +221,80 @@ function gaussianRandom(mean = 0, stdev = 1) {
     return z * stdev + mean;
 }
 
-function pickPos(min, max) {
+function pickPosUniform(min, max) {
     // we should prefer center positions
-    let r1 = gaussianRandom((max - min) / 2.0, (max - min) / 6.0);
+    var min1 = 0;
+    var min2 = 0;
+    var max1 = 0;
+    var max2 = 0;
+    if (typeof min == 'object') { // or 'number'
+        min1 = min[0];
+        min2 = min[1];
+    } else {
+        min1 = min;
+        min2 = min;
+    }
+    if (typeof max == 'object') {
+        max1 = max[0];
+        max2 = max[1];
+    } else {
+        max1 = max;
+        max2 = max;
+    }
+
+    let r1 = (Math.random() * (max1 - min1)) - min1;
     r1 = (r1 < 0 ? 0 : r1);
-    r1 = (r1 > max ? max : r1);
-    let r2 = gaussianRandom((max - min) / 2.0, (max - min) / 6.0);
+    r1 = (r1 > max1 ? max1 : r1);
+    let r2 = (Math.random() * (max2 - min2)) - min2;
     r1 = Math.round(r1);
     r2 = Math.round(r2);
     r2 = (r2 < 0 ? 0 : r2);
-    r2 = (r2 > max ? max : r2);
+    r2 = (r2 > max2 ? max2 : r2);
     return [r1, r2];
 }
 
-function checkIntersection(paths, path1) {
+function pickPos(min, max) {
+    // we should prefer center positions
+    var min1 = 0;
+    var min2 = 0;
+    var max1 = 0;
+    var max2 = 0;
+    if (typeof min == 'object') { // or 'number'
+        min1 = min[0];
+        min2 = min[1];
+    } else {
+        min1 = min;
+        min2 = min;
+    }
+    if (typeof max == 'object') {
+        max1 = max[0];
+        max2 = max[1];
+    } else {
+        max1 = max;
+        max2 = max;
+    }
+
+    let r1 = gaussianRandom((max1 - min1) / 2.0, (max1 - min1) / 6.0);
+    r1 = (r1 < 0 ? 0 : r1);
+    r1 = (r1 > max1 ? max1 : r1);
+    let r2 = gaussianRandom((max2 - min2) / 2.0, (max2 - min2) / 6.0);
+    r1 = Math.round(r1);
+    r2 = Math.round(r2);
+    r2 = (r2 < 0 ? 0 : r2);
+    r2 = (r2 > max2 ? max2 : r2);
+    return [r1, r2];
+}
+
+function checkIntersection(paths, path1, allowSmallIntersections) {
+    if (typeof allowSmallIntersections == 'undefined')
+        allowSmallIntersections = true;
     for (i in paths) {
         var path0 = paths[i];
         var intersection = intersect(path0, path1);
         // Some intersections  might  be ok,  for example of the two strokes are long
         // We would really like to test  here for the angle of intersection but for now
         // we can simply use the number of intersecting points.
-        if (intersection.length == 4 && path0.length > 300 && path1.length > 300) {
+        if (allowSmallIntersections && intersection.length == 4 && path0.length > 300 && path1.length > 300) {
             // maybe check if the 4 points are close enough together?
             var cc = [[intersection[0].x, intersection[1].x, intersection[2].x, intersection[3].x], [intersection[0].y, intersection[1].y, intersection[2].y, intersection[3].y]];
             var size = [Math.max(...cc[0]) - Math.min(...cc[0]), Math.max(...cc[1]) - Math.min(...cc[1])];
@@ -376,7 +434,87 @@ function predict(dictionaryPaths) {
     return character;
 }
 
-function pageForCharacter(characters) {
+
+// show all entries of the data dictionary on one page
+function predictAll(dictionaryPaths, portion) {
+    if (typeof portion == 'undefined') {
+        portion = [0.9, 1];
+    }
+    if (portion[0] > portion[1]) {
+        var tmp = portion[0];
+        portion[0] = portion[1];
+        portion[1] = tmp;
+    }
+    // clamp the portion
+    portion[0] = Math.min(Math.max(portion[0], 0), 1);
+    portion[1] = Math.min(Math.max(portion[1], 0), 1);
+
+    var dict = null;
+    if (dictCache == null) {
+        var dict = [];
+        for (var f = 0; f < dictionaryPaths.length; f++) {
+            var filePath = dictionaryPaths[f];
+            console.log("read: " + filePath);
+            const contentRaw = fs.readFileSync(filePath);
+            var content = contentRaw.toString('utf8').split("\n");
+            for (c in content)
+                dict.push(content[c]);
+        }
+        dictCache = dict;
+    } else {
+        dict = dictCache;
+    }
+    //console.log("got " + dict.length + " entries in dictionary.");
+    // so we can draw now some number of characters and place them inside a box
+    var chars = [];  // return more than one character
+    var really_large_box = "M 0 0 L 1024 0 L 1024 1024 L 0 1024 L 0 0";
+    let character = [really_large_box];
+    let attempt = 0;
+    // how many characters for this?
+    for (var c = 0; c < dict.length; c++) { // place 10 characters on one sheet
+        if (c < dict.length * portion[0] || c > dict.length * portion[1])
+            continue;
+        if (attempt >= 1000) {
+            if (character.length > 0) {
+                character.shift();  // remove the box again
+                chars.push(character);
+                if (chars.length > 22 * 22)
+                    return chars;
+            }
+            character = [really_large_box]; // every character is a list of drawing commands (existing dictionary entries placed inside the box)
+            attempt = 0;
+        }
+        var p = dict[c];
+        while (attempt < 1000) {
+            // the strokes first position is not the center
+            var path = setStartPosition(p, pickPos(0, 1024));
+            if (!checkIntersection(character, path, false)) {
+                //console.log(c + "/" + dict.length + " x:" + x + " y:" + y);
+                character.push(path);
+                break; // the while
+            }
+            attempt++;
+        }
+    }
+    if (character.length > 1) {
+        character.shift();
+        chars.push(character);
+    }
+    //console.log(character);
+    //console.log("strokes: " + character.length);
+    return chars;
+}
+
+// fill can be either false or "green"
+function pageForCharacter(characters, theme) {
+    var theme = theme || { "glow": true, 'black-on-white': false, 'fill': false };
+    if (typeof theme.glow == 'undefined')
+        theme.glow = true;
+    if (typeof theme["black-on-white"] == 'undefined')
+        theme['black-on-white'] = false;
+    if (typeof theme["fill"] == 'undefined')
+        theme['fill'] = false;
+
     var out = fs.createWriteStream("page.html"); // each line is a path
 
     var filter = "<defs>" +
@@ -403,8 +541,28 @@ function pageForCharacter(characters) {
         "  <feMergeNode in=\"blur5\"/>" +
         "  <feMergeNode in=\"SourceGraphic\"/>" +
         "</feMerge>" +
-        "</filter>" +
-        "</defs>";
+        "</filter>\n" +
+        "</defs>\n";
+
+    var filter_green = "<defs>" +
+        "<pattern id=\"img1\" patternUnits=\"userSpaceOnUse\" width=\"2070\" height=\"1380\">\n" +
+        "  <image href=\"images/green.jpg\" x=\"0\" y=\"0\" width=\"2070\" height=\"1380\" />\n" +
+        "</pattern>\n" +
+        "</defs>\n";
+
+    if (!theme.glow) {
+        filter = "";
+    }
+    var fg = "white";
+    var bg = "black";
+    if (theme["black-on-white"]) {
+        bg = "white";
+        fg = "black";
+    }
+    if (theme["fill"] == "green") {
+        filter += filter_green;
+        fg = "url(#img1)";
+    }
 
     let page = "<!DOCTYPE html>\n" +
         "<html lang=\"en\">\n" +
@@ -412,20 +570,19 @@ function pageForCharacter(characters) {
         "  <meta charset=\"UTF-8\" />\n" +
         "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n" +
         "  <meta http-equiv=\"X-UA-Compatible\" content=\"ie=edge\" />\n" +
-        "  <title>Random strokes</title>\n" +
-        "  <link href=\"index.css\" rel=\"stylesheet\" />\n" +
+        "  <title>Random piles of bones</title>\n" +
         "</head>\n" +
-        "<body style=\"background: black;\">\n" +
+        "<body style=\"background: " + bg + ";\">\n" +
         "<svg viewBox=\"0 0 1024 1024\" height=\"100\" width=\"100\">" + filter + "</svg>\n" +
-        "<div>\n<div style=\"width: 100%; height: 100%; display: inline-table; margin: 60px; fill: white;\">";
+        "<div>\n<div style=\"width: 100%; height: 100%; display: inline-table; margin: 60px; fill: " + fg + ";\">\n";
     for (var c = 0; c < characters.length; c++) {
         var char = characters[c];
-        page += "<svg viewBox=\"0 0 1024 1024\" height=\"100\" width=\"100\" style=\"margin-right: 100px; margin-bottom: 20px; filter: url(#red-glow);\">";
-        page += "<path class=\"svg1\" style = \"stroke: width; stroke-width: 2; stroke-linecap: round; stroke-linejoin:  miter; stroke-miterlimit: 4;\"  d = \"";
+        page += "  <svg viewBox=\"0 0 1024 1024\" height=\"100\" width=\"100\" style=\"margin-left: 100px; margin-top: 20px; " + (theme.glow ? "filter: url(#red-glow);" : "") + " transform: scale(-1,-1);\">\n";
+        page += "    <path class=\"svg1\" style=\"stroke-width: 0; stroke-linecap: round; stroke-linejoin: miter; stroke-miterlimit: 4;\" d=\"";
         for (var i = 0; i < char.length; i++) {
             page += char[i] + " ";
         }
-        page += "\"/></svg>\n";
+        page += "\"/>\n  </svg>\n";
     }
     page += "</div></div></body>\n</html>\n";
     out.write(page);
@@ -477,6 +634,58 @@ yargs(hideBin(process.argv))
         for (var i = 0; i < (16 * 16) - 1; i++)
             chars.push(vary(chars[0], argv.filename));  // that is now an array
         pageForCharacter(chars);
+    })
+    .command('language [filename..]', 'create a character set based on the dictionary.txt and vary it on the page', (yargs) => {
+        return yargs
+            .positional('filename', {
+                describe: 'json with array of dictionaries',
+                default: 'dictionary.txt'
+            })
+    }, (argv) => {
+        if (argv.verbose)
+            console.info(`process: ${argv.filename} to get a cleared text file`)
+
+        // a circular design with a parent character in the center
+        // at each section of the circle some variation of the character is continued
+        // we should have a fixed number of characters for each parent
+        var chars = new Array(14 * 14).fill(null);
+        for (var j = 0; j < 14; j++) {
+            var diag_idx = j * 14 + j;
+            chars[diag_idx] = predict(argv.filename);
+            for (var i = 1; i < 14 - j; i++) { // fill in the row
+                chars[diag_idx + i] = vary(chars[diag_idx], argv.filename);  // that is now an array
+            }
+            for (var i = diag_idx + 14; i < 14 * 14; i += 14) {  // fill in the column
+                chars[i] = vary(chars[diag_idx], argv.filename);
+            }
+        }
+        pageForCharacter(chars, { glow: false, "black-on-white": true, "fill": null });
+    })
+    .command('dictionary [filename..]', 'display all characters on one page', (yargs) => {
+        return yargs
+            .positional('filename', {
+                describe: 'json with array of dictionaries',
+                default: 'dictionary.txt'
+            })
+    }, (argv) => {
+        if (argv.verbose)
+            console.info(`process: ${argv.filename} to get a page with all the entries in dictionary`)
+
+        // we cannot display all the characters, select a portion of the data
+        var chars = predictAll(argv.filename, [argv.dictmin, argv.dictmax]);
+        pageForCharacter(chars, { glow: false, "black-on-white": false, "fill": null });
+    })
+    .option('dictmin', {
+        alias: 'i',
+        type: 'float',
+        default: 0.9,
+        description: 'minimum value, only used for "dictionary" argument (0.9)'
+    })
+    .option('dictmax', {
+        alias: 'a',
+        type: 'float',
+        default: 1.0,
+        description: 'maximum value, only used for "dictionary" argument (1.0)'
     })
     .option('verbose', {
         alias: 'v',
