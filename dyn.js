@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// profiling with option--prof
+// profiling with option --prof or for memory use --inspect / --inspect-brk
 // run afterwards the log through node again
+
+"use strict";
 
 const fs = require("fs-extra");
 var intersect = require('path-intersection');
@@ -35,15 +37,13 @@ function getStartPosition(path) {
 function setStartPosition(path, newPos) { // newPos = [0,0]
     if (typeof path == 'undefined')
         return null;
-    var c = getStartPosition(path);
-    let xcoord = c[0];
-    let ycoord = c[1];
+    //var c = getStartPosition(path);
     var cs = ["M", "Q", "Z", "C", "L", "S", "V", "H", "A"];
 
     var stroke = path.split(" ");
     var center = [0, 0];
     var numCoords = 0;
-    let x = 0;
+    var x = 0;
     // find the center of mass of all coordinates (regardless of spline or position)
     for (var k = 0; k < stroke.length; k++) {
         if (cs.indexOf(stroke[k]) != -1) {
@@ -51,8 +51,6 @@ function setStartPosition(path, newPos) { // newPos = [0,0]
         } else {
             var ii = parseInt(stroke[k]);
             if (((x + 1) % 2) == 0) {
-                // odd (x because the is M or Q etc.)
-                // ii = ii - xcoord + newPos[0];
                 center[0] += ii;
             } else {
                 // even
@@ -61,15 +59,16 @@ function setStartPosition(path, newPos) { // newPos = [0,0]
                 //ii = ii - ycoord + newPos[1];
             }
         }
-        x++
+        x++;
     }
     center[0] /= numCoords;
     center[1] /= numCoords;
     center[0] = Math.floor(center[0]);
     center[1] = Math.floor(center[1]);
 
-    let text = "";
+    var text = "";
     x = 0;
+    var isM = false;
     for (var k = 0; k < stroke.length; k++) {
         if (cs.indexOf(stroke[k]) != -1) {
             text += " " + stroke[k];
@@ -80,7 +79,6 @@ function setStartPosition(path, newPos) { // newPos = [0,0]
             x = 0;
         } else {
             var ii = parseInt(stroke[k]);
-            //if (!isM) { // relative to M only if its not M itself
             if (((x + 1) % 2) == 0) {
                 // even
                 ii = ii - center[0] + newPos[0];
@@ -88,11 +86,9 @@ function setStartPosition(path, newPos) { // newPos = [0,0]
                 // odd
                 ii = ii - center[1] + newPos[1];
             }
-            //}
-            //console.log("number: " + ii + " for: " + stroke[k]);
             text += " " + ii;
         }
-        x++
+        x++;
     }
     return text.trim();
 }
@@ -274,10 +270,10 @@ function pickPos(min, max) {
         max2 = max;
     }
 
-    let r1 = gaussianRandom((max1 - min1) / 2.0, (max1 - min1) / 6.0);
+    var r1 = gaussianRandom((max1 - min1) / 2.0, (max1 - min1) / 6.0);
     r1 = (r1 < 0 ? 0 : r1);
     r1 = (r1 > max1 ? max1 : r1);
-    let r2 = gaussianRandom((max2 - min2) / 2.0, (max2 - min2) / 6.0);
+    var r2 = gaussianRandom((max2 - min2) / 2.0, (max2 - min2) / 6.0);
     r1 = Math.round(r1);
     r2 = Math.round(r2);
     r2 = (r2 < 0 ? 0 : r2);
@@ -288,7 +284,7 @@ function pickPos(min, max) {
 function checkIntersection(paths, path1, allowSmallIntersections) {
     if (typeof allowSmallIntersections == 'undefined')
         allowSmallIntersections = true;
-    for (i in paths) {
+    for (var i in paths) {
         var path0 = paths[i];
         var intersection = intersect(path0, path1);
         // Some intersections  might  be ok,  for example of the two strokes are long
@@ -436,18 +432,30 @@ function predict(dictionaryPaths) {
 
 
 // show all entries of the data dictionary on one page
-function predictAll(dictionaryPaths, portion) {
-    if (typeof portion == 'undefined') {
-        portion = [0.9, 1];
+function predictAll(dictionaryPaths, options) {
+    options = options || {
+        portion: [0.9, 1.0],
+        maxNumChars: -1,
+        maxAttempts: 400
     }
-    if (portion[0] > portion[1]) {
-        var tmp = portion[0];
-        portion[0] = portion[1];
-        portion[1] = tmp;
+    if (typeof options.portion == 'undefined') {
+        options.portion = [0.9, 1];
+    }
+    if (options.portion[0] > options.portion[1]) {
+        var tmp = options.portion[0];
+        options.portion[0] = options.portion[1];
+        options.portion[1] = tmp;
     }
     // clamp the portion
-    portion[0] = Math.min(Math.max(portion[0], 0), 1);
-    portion[1] = Math.min(Math.max(portion[1], 0), 1);
+    options.portion[0] = Math.min(Math.max(options.portion[0], 0), 1);
+    options.portion[1] = Math.min(Math.max(options.portion[1], 0), 1);
+
+    if (typeof options.maxNumChars == 'undefined') {
+        options.maxNumChars = -1; // no limit
+    }
+    if (typeof options.maxAttempts == 'undefined') {
+        options.maxAttempts = 400;
+    }
 
     var dict = null;
     if (dictCache == null) {
@@ -468,24 +476,39 @@ function predictAll(dictionaryPaths, portion) {
     // so we can draw now some number of characters and place them inside a box
     var chars = [];  // return more than one character
     var really_large_box = "M 0 0 L 1024 0 L 1024 1024 L 0 1024 L 0 0";
-    let character = [really_large_box];
-    let attempt = 0;
+    var character = [really_large_box];
+    var attempt = 0;
+
+    var start = process.hrtime();
+
+    var elapsed_time = function (note) {
+        var precision = 3; // 3 decimal places
+        var elapsed = process.hrtime(start)[1] / 1000000; // divide by a million to get nano to milli
+        console.log(process.hrtime(start)[0] + " s, " + elapsed.toFixed(precision) + " ms - " + note); // print message + time
+        start = process.hrtime(); // reset the timer
+    }
+
     // how many characters for this?
-    for (var c = 0; c < dict.length; c++) { // place 10 characters on one sheet
-        if (c < dict.length * portion[0] || c > dict.length * portion[1])
-            continue;
-        if (attempt >= 1000) {
+    var numChars = options.maxNumChars;
+    var numAttempts = options.maxAttempts;
+    for (var c = Math.floor(dict.length * options.portion[0]); c < Math.floor(dict.length * options.portion[1]); c++) { // place 10 characters on one sheet
+        //if (c < dict.length * portion[0] || c > dict.length * portion[1])
+        //    continue;
+        if (attempt >= numAttempts) {
             if (character.length > 0) {
                 character.shift();  // remove the box again
                 chars.push(character);
-                if (chars.length > 22 * 22)
+                //console.log("got " + character.length + " characters. Now have " + chars.length);
+                elapsed_time("got " + character.length + " strokes. Now have " + chars.length + "/" + numChars
+                    + " c(%)=" + ((c - (Math.floor(dict.length * options.portion[0]))) / (Math.floor(dict.length * options.portion[1]) - Math.floor(dict.length * options.portion[0]))).toFixed(2));
+                if (numChars > 0 && chars.length > numChars) // early stopping
                     return chars;
             }
             character = [really_large_box]; // every character is a list of drawing commands (existing dictionary entries placed inside the box)
             attempt = 0;
         }
         var p = dict[c];
-        while (attempt < 1000) {
+        while (attempt < numAttempts) {
             // the strokes first position is not the center
             var path = setStartPosition(p, pickPos(0, 1024));
             if (!checkIntersection(character, path, false)) {
@@ -496,10 +519,11 @@ function predictAll(dictionaryPaths, portion) {
             attempt++;
         }
     }
-    if (character.length > 1) {
+    // ignore any leftover characters
+    /*if (character.length > 1) {
         character.shift();
         chars.push(character);
-    }
+    }*/
     //console.log(character);
     //console.log("strokes: " + character.length);
     return chars;
@@ -672,7 +696,11 @@ yargs(hideBin(process.argv))
             console.info(`process: ${argv.filename} to get a page with all the entries in dictionary`)
 
         // we cannot display all the characters, select a portion of the data
-        var chars = predictAll(argv.filename, [argv.dictmin, argv.dictmax]);
+        var chars = predictAll(argv.filename, {
+            portion: [argv.dictmin, argv.dictmax],
+            maxNumChars: -1,
+            maxAttempts: 400
+        });
         pageForCharacter(chars, { glow: false, "black-on-white": false, "fill": null });
     })
     .option('dictmin', {
