@@ -597,7 +597,7 @@ function pageForCharacter(characters, theme) {
         "  <title>Random piles of bones</title>\n" +
         "</head>\n" +
         "<body style=\"background: " + bg + ";\">\n" +
-        "<svg viewBox=\"0 0 1024 1024\" height=\"100\" width=\"100\">" + filter + "</svg>\n" +
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1024 1024\" height=\"100\" width=\"100\">" + filter + "</svg>\n" +
         "<div>\n<div style=\"width: 100%; height: 100%; display: inline-table; margin: 60px; fill: " + fg + ";\">\n";
     for (var c = 0; c < characters.length; c++) {
         var char = characters[c];
