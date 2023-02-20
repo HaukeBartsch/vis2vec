@@ -482,9 +482,9 @@ function predictAll(dictionaryPaths, options) {
     var start = process.hrtime();
 
     var elapsed_time = function (note) {
-        var precision = 3; // 3 decimal places
+        // var precision = 3; // 3 decimal places
         var elapsed = process.hrtime(start)[1] / 1000000; // divide by a million to get nano to milli
-        console.log(process.hrtime(start)[0] + " s, " + elapsed.toFixed(precision) + " ms - " + note); // print message + time
+        console.log(process.hrtime(start)[0] + " s, " + Math.floor(elapsed) + " ms - " + note); // print message + time
         start = process.hrtime(); // reset the timer
     }
 
@@ -499,8 +499,8 @@ function predictAll(dictionaryPaths, options) {
                 character.shift();  // remove the box again
                 chars.push(character);
                 //console.log("got " + character.length + " characters. Now have " + chars.length);
-                elapsed_time("got " + character.length + " strokes. Now have " + chars.length + "/" + numChars
-                    + " c(%)=" + ((c - (Math.floor(dict.length * options.portion[0]))) / (Math.floor(dict.length * options.portion[1]) - Math.floor(dict.length * options.portion[0]))).toFixed(2));
+                elapsed_time("got " + character.length + " strokes, " + chars.length + (numChars > 0 ? "/" + numChars : "")
+                    + "character, c(%)=" + ((c - (Math.floor(dict.length * options.portion[0]))) / (Math.floor(dict.length * options.portion[1]) - Math.floor(dict.length * options.portion[0]))).toFixed(2));
                 if (numChars > 0 && chars.length > numChars) // early stopping
                     return chars;
             }
