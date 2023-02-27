@@ -299,6 +299,10 @@ class Vis2Vec {
             }
         }
         character.shift();  // remove the box again
+        return character;
+    }
+    predictPath() {
+        let character = this.predict();
         let newpath = document.createElementNS("http://www.w3.org/2000/svg", "path");
         newpath.setAttributeNS(null, "d", character.join(" "));
         return newpath;

@@ -26,29 +26,7 @@
                     <li class="nav-item">
                         <a class="nav-link active" aria-current="page" href="#">Documentation</a>
                     </li>
-                    <!-- <li class="nav-item">
-                        <a class="nav-link" href="#">Notifications</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#">Profile</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#">Switch account</a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="dropdown01" data-bs-toggle="dropdown"
-                            aria-expanded="false">Settings</a>
-                        <ul class="dropdown-menu" aria-labelledby="dropdown01">
-                            <li><a class="dropdown-item" href="#">Action</a></li>
-                            <li><a class="dropdown-item" href="#">Another action</a></li>
-                            <li><a class="dropdown-item" href="#">Something else here</a></li>
-                        </ul>
-                    </li> -->
                 </ul>
-                <!--                <form class="d-flex">
-                    <input class="form-control me-2" type="search" placeholder="Search" aria-label="Search">
-                    <button class="btn btn-outline-success" type="submit">Search</button>
-                </form> -->
             </div>
         </div>
     </nav>
@@ -62,10 +40,6 @@
             </a>
             <a class="nav-link" href="#">Explore</a>
             <a class="nav-link" href="#">Suggestions</a>
-            <a class="nav-link" href="#">Link</a>
-            <a class="nav-link" href="#">Link</a>
-            <a class="nav-link" href="#">Link</a>
-            <a class="nav-link" href="#">Link</a>
             <a class="nav-link" href="#">Link</a>
         </nav>
     </div>
@@ -88,8 +62,9 @@
                 </svg>
 
                 <p class="pb-3 mb-0 small lh-sm border-bottom">
-                    <strong class="d-block text-gray-dark">/</strong>
-                    Get a single character as an svg element.
+                    <strong class="d-block text-gray-dark">/?get=1</strong>
+                    Get a single character as an svg path. To add the paths to an svg element use:<br>
+                    <code>let newpath = document.createElementNS("http://www.w3.org/2000/svg", "path"); newpath.setAttributeNS(null, "d", character.join(" "));</code>
                 </p>
             </div>
             <small class="d-block text-end mt-3">
