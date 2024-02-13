@@ -1,6 +1,7 @@
 
 <img src="images/collage.jpg" alt="variations on the top left bone pile" width="auto" style="padding: 20px"/>
 
+An experiment with destruction and reconstruction of a language structure.
 
 ```{bash}
 # npm install
